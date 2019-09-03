@@ -96,7 +96,7 @@ func (o Options) GetManagementKey(y Yubikey) ([]byte, error) {
 	key := o.ManagementKey
 	if o.ManagementKeyIsPIN {
 		var err error
-		key, err = y.deriveManagementKey()
+		key, err = y.DeriveManagementKey()
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +134,7 @@ func (o Options) GetPIN() (string, error) {
 // `.Close()` must be called, or this will leak memory.
 type Yubikey struct {
 	state   *C.ykpiv_state
-	options Options
+	Options Options
 }
 
 // Close the Yubikey object, and preform any finization needed to avoid leaking
@@ -222,7 +222,7 @@ func (y Yubikey) PINRetries() (int, error) {
 
 // Log into the Yubikey using the user PIN.
 func (y Yubikey) Login() error {
-	pin, err := y.options.GetPIN()
+	pin, err := y.Options.GetPIN()
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (y Yubikey) Login() error {
 // Using the PUK, unblock the PIN, resetting the retry counter.
 func (y Yubikey) UnblockPIN(newPin string) error {
 	tries := C.int(0)
-	puk, err := y.options.GetPUK()
+	puk, err := y.Options.GetPUK()
 	if err != nil {
 		return err
 	}
@@ -259,12 +259,8 @@ func (y Yubikey) UnblockPIN(newPin string) error {
 
 // Change the PUK.
 func (y Yubikey) ChangePUK(newPuk string) error {
-	if y.options.ManagementKeyIsPIN {
-		return fmt.Errorf("ykpiv: ChangePIN: Please change your PUK through pivman")
-	}
-
 	tries := C.int(0)
-	puk, err := y.options.GetPUK()
+	puk, err := y.Options.GetPUK()
 	if err != nil {
 		return err
 	}
@@ -289,10 +285,6 @@ func (y Yubikey) ChangePUK(newPuk string) error {
 // key that's used as a 3DES key internally to preform key operations,
 // such as Certificate import, or keypair generation.
 func (y Yubikey) SetMGMKey(key []byte) error {
-	if y.options.ManagementKeyIsPIN {
-		return fmt.Errorf("ykpiv: ChangePIN: Please change your Management Key through pivman")
-	}
-
 	cMgmKey := (*C.uchar)(C.CBytes(key))
 	defer C.free(unsafe.Pointer(cMgmKey))
 	return getError(C.ykpiv_set_mgmkey(y.state, cMgmKey), "set_mgmkey")
@@ -300,10 +292,6 @@ func (y Yubikey) SetMGMKey(key []byte) error {
 
 // Change your PIN on the Yubikey from the oldPin to the newPin.
 func (y Yubikey) ChangePIN(oldPin, newPin string) error {
-	if y.options.ManagementKeyIsPIN {
-		return fmt.Errorf("ykpiv: ChangePIN: Please change your PIN through pivman")
-	}
-
 	tries := C.int(0)
 
 	cOldPin := (*C.char)(C.CString(oldPin))
@@ -340,7 +328,7 @@ func (y Yubikey) Attest(slotId SlotId) (*x509.Certificate, error) {
 // key that's used as a 3DES key internally to write new Certificates, or
 // create a new keypair.
 func (y Yubikey) Authenticate() error {
-	managementKey, err := y.options.GetManagementKey(y)
+	managementKey, err := y.Options.GetManagementKey(y)
 	if err != nil {
 		return err
 	}
@@ -531,7 +519,7 @@ func (y Yubikey) GetCertificate(slotId SlotId) (*x509.Certificate, error) {
 func New(opts Options) (*Yubikey, error) {
 	yubikey := Yubikey{
 		state:   &C.ykpiv_state{},
-		options: opts,
+		Options: opts,
 	}
 
 	verbosity := 0

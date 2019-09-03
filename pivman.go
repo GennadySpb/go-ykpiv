@@ -32,7 +32,7 @@ import "C"
 
 import (
 	"crypto"
-
+	"encoding/asn1"
 	"golang.org/x/crypto/pbkdf2"
 
 	"pault.ag/go/ykpiv/internal/bytearray"
@@ -52,7 +52,7 @@ var (
 
 // Get the salt off the Yubikey PIV token, which is stored in a DER encoded
 // array of arrays. This salt is a couple of bytes of calming entropy.
-func (y Yubikey) getSalt() ([]byte, error) {
+func (y Yubikey) GetSalt() ([]byte, error) {
 	attributes, err := y.getPIVMANAttributes()
 	if err != nil {
 		return nil, err
@@ -60,9 +60,41 @@ func (y Yubikey) getSalt() ([]byte, error) {
 	return attributes[pivmanTagSalt], nil
 }
 
+func (y Yubikey) SetSalt(salt []byte) (err error) {
+	attributes, err := y.getPIVMANAttributes()
+	if err != nil {
+		// TODO: handle APDUError if PIVMANAttributes is not yet set
+		attributes = map[int][]byte{}
+	}
+	attributes[pivmanTagSalt] = salt
+
+	values := make([]asn1.RawValue, len(attributes))
+	if _, ok := attributes[pivmanTagFlags1]; !ok {
+		values = append(values, asn1.RawValue{Tag: pivmanTagFlags1, IsCompound: true, Class: 0x01, Bytes: []byte{0}})
+	}
+
+	values = append(values, asn1.RawValue{Tag: pivmanTagSalt, IsCompound: true, Class: 0x01, Bytes: salt})
+
+	if _, ok := attributes[pivmanTagTimestamp]; !ok {
+		values = append(values, asn1.RawValue{Tag: pivmanTagTimestamp, IsCompound: true, Class: 0x01, Bytes: []byte{0, 0, 0, 0}})
+	}
+
+	byteArray, err := bytearray.Encode(values)
+	if err != nil {
+		return
+	}
+
+	byteArray, err = bytearray.Encode([]asn1.RawValue{{Tag: 0x80, IsCompound: true, Class: 0x01, Bytes: byteArray}})
+	if err != nil {
+		return
+	}
+
+	return y.SaveObject(int32(pivmanObjData), byteArray)
+}
+
 // Compute the PIVMAN Management Key using 10000 rounds of PBKDF2 SHA1
 // utilizing the salt off the Yubikey to derive the 3DES management key.
-func (y Yubikey) deriveManagementKey() ([]byte, error) {
+func (y Yubikey) DeriveManagementKey() ([]byte, error) {
 	// Description of the Management key derivation can be found on the
 	// Yubikey website:
 	// https://developers.yubico.com/yubikey-piv-manager/PIN_and_Management_Key.html
@@ -79,12 +111,11 @@ func (y Yubikey) deriveManagementKey() ([]byte, error) {
 	// (encoded using UTF-8) as the password, for 10000 rounds, to produce a 24
 	// byte key, which is used as the management key. Whenever the user changes
 	// the PIN this process is repeated, using a new SALT and the new PIN.
-	pin, err := y.options.GetPIN()
+	pin, err := y.Options.GetPIN()
 	if err != nil {
 		return nil, err
 	}
-
-	salt, err := y.getSalt()
+	salt, err := y.GetSalt()
 	if err != nil {
 		return nil, err
 	}
