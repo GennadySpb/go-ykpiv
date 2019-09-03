@@ -40,7 +40,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rsa"
 
-	"pault.ag/go/ykpiv/internal/bytearray"
+	"github.com/t33m/go-ykpiv/internal/bytearray"
 )
 
 type TouchPolicy byte

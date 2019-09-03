@@ -46,7 +46,7 @@ import (
 	"math/big"
 	"unsafe"
 
-	"pault.ag/go/ykpiv/internal/bytearray"
+	"github.com/t33m/go-ykpiv/internal/bytearray"
 )
 
 // Configuration for initialization of the Yubikey, as well as options that

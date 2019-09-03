@@ -35,7 +35,7 @@ import (
 	"encoding/asn1"
 	"golang.org/x/crypto/pbkdf2"
 
-	"pault.ag/go/ykpiv/internal/bytearray"
+	"github.com/t33m/go-ykpiv/internal/bytearray"
 )
 
 var (
