@@ -254,7 +254,7 @@ func (y Yubikey) UnblockPIN(newPin string) error {
 		cPuk, cPukLen,
 		cPin, cPinLen,
 		&tries,
-	), "change_puk")
+	), "unblock_pin")
 }
 
 // Change the PUK.
