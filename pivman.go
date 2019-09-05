@@ -40,6 +40,7 @@ import (
 
 var (
 	pivmanObjData = 0x5FFF00
+	pivmanProtectedData = 0x5FC109
 
 	/* pivman's source defines this as 0x80, but since we're using an actual
 	 * der decoder, we'll see the tag value, which would just be 1 */
@@ -53,7 +54,7 @@ var (
 // Get the salt off the Yubikey PIV token, which is stored in a DER encoded
 // array of arrays. This salt is a couple of bytes of calming entropy.
 func (y Yubikey) GetSalt() ([]byte, error) {
-	attributes, err := y.getPIVMANAttributes()
+	attributes, err := y.getPIVMANAttributes(pivmanObjData)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func (y Yubikey) GetSalt() ([]byte, error) {
 }
 
 func (y Yubikey) SetSalt(salt []byte) (err error) {
-	attributes, err := y.getPIVMANAttributes()
+	attributes, err := y.getPIVMANAttributes(pivmanObjData)
 	if err != nil {
 		// TODO: handle APDUError if PIVMANAttributes is not yet set
 		attributes = map[int][]byte{}
@@ -69,26 +70,25 @@ func (y Yubikey) SetSalt(salt []byte) (err error) {
 	attributes[pivmanTagSalt] = salt
 
 	values := make([]asn1.RawValue, len(attributes))
+	values = append(values, asn1.RawValue{Tag: pivmanTagSalt, IsCompound: false, Class: 0x01, Bytes: salt})
 	if _, ok := attributes[pivmanTagFlags1]; !ok {
-		values = append(values, asn1.RawValue{Tag: pivmanTagFlags1, IsCompound: true, Class: 0x01, Bytes: []byte{0}})
+		values = append(values, asn1.RawValue{Tag: pivmanTagFlags1, IsCompound: false, Class: 0x01, Bytes: []byte{0}})
 	}
-
-	values = append(values, asn1.RawValue{Tag: pivmanTagSalt, IsCompound: true, Class: 0x01, Bytes: salt})
-
 	if _, ok := attributes[pivmanTagTimestamp]; !ok {
-		values = append(values, asn1.RawValue{Tag: pivmanTagTimestamp, IsCompound: true, Class: 0x01, Bytes: []byte{0, 0, 0, 0}})
+		values = append(values,
+			asn1.RawValue{Tag: pivmanTagTimestamp, IsCompound: false, Class: 0x01, Bytes: []byte{0, 0, 0, 0}},
+		)
 	}
 
 	byteArray, err := bytearray.Encode(values)
 	if err != nil {
 		return
 	}
-
-	byteArray, err = bytearray.Encode([]asn1.RawValue{{Tag: 0x80, IsCompound: true, Class: 0x01, Bytes: byteArray}})
-	if err != nil {
+	if byteArray, err = bytearray.Encode(
+		[]asn1.RawValue{{Tag: 0x80, IsCompound: true, Class: 0x01, Bytes: byteArray}},
+	); err != nil {
 		return
 	}
-
 	return y.SaveObject(int32(pivmanObjData), byteArray)
 }
 
@@ -122,13 +122,55 @@ func (y Yubikey) DeriveManagementKey() ([]byte, error) {
 	return pbkdf2.Key([]byte(pin), salt, 10000, 24, crypto.SHA1.New), nil
 }
 
+func (y Yubikey) SetProtectedMGMKey(key []byte) (err error) {
+	if err = y.SetMGMKey(key); err != nil {
+		return
+	}
+	byteArray, err := bytearray.Encode(
+		[]asn1.RawValue{asn1.RawValue{Tag: pivmanTagFlags1, IsCompound: false, Class: 0x02, Bytes: []byte{2}}},
+	)
+	if err != nil {
+		return
+	}
+	if byteArray, err = bytearray.Encode(
+		[]asn1.RawValue{{Tag: 0x00, IsCompound: false, Class: 0x02, Bytes: byteArray}},
+	); err != nil {
+		return
+	}
+	if err = y.SaveObject(int32(pivmanObjData), byteArray); err != nil {
+		return
+	}
+	byteArray, err = bytearray.Encode([]asn1.RawValue{{Tag: 0x09, IsCompound: false, Class: 0x02, Bytes: key}})
+	if err != nil {
+		return
+	}
+	if byteArray, err = bytearray.Encode(
+		[]asn1.RawValue{{Tag: 0x08, IsCompound: false, Class: 0x02, Bytes: byteArray}},
+	); err != nil {
+		return
+	}
+	return y.SaveObject(int32(pivmanProtectedData), byteArray)
+}
+
+func (y Yubikey) GetProtectedMGMKey() ([]byte, error) {
+	attributes, err := y.getPIVMANAttributes(pivmanObjData)
+	if err != nil {
+		return nil, err
+	}
+	attributes, err = y.getPIVMANAttributes(pivmanProtectedData)
+	if err != nil {
+		return nil, err
+	}
+	return attributes[0x09], nil
+}
+
 // Return a mapping of pivmanTags -> byte arrays. The exact semantics
 // of this byte array is defined entirely by the tag, and should be treated
 // as semantically opaque to the user, unless specific parsing code is in place.
-func (y Yubikey) getPIVMANAttributes() (map[int][]byte, error) {
+func (y Yubikey) getPIVMANAttributes(id int) (map[int][]byte, error) {
 	attributes := map[int][]byte{}
 
-	bytes, err := y.GetObject(pivmanObjData)
+	bytes, err := y.GetObject(id)
 	if err != nil {
 		return nil, err
 	}
