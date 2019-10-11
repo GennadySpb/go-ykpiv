@@ -29,7 +29,7 @@ package ykpiv
 #cgo linux LDFLAGS: -lykpiv -Wl,--allow-multiple-definition
 #cgo linux CFLAGS: -I/usr/include/ykpiv/
 #cgo windows CFLAGS: -I./win/include/ykpiv/
-#cgo windows LDFLAGS: ./win/lib/libykpiv.dll.a
+#cgo windows LDFLAGS: -L./win/lib -lykpiv
 #include <ykpiv.h>
 #include <stdlib.h>
 */
