@@ -517,8 +517,9 @@ func (y Yubikey) GetCertificate(slotId SlotId) (*x509.Certificate, error) {
 // find the correct Yubikey, initialize the underlying state, and ensure
 // the right bits are set.
 func New(opts Options) (*Yubikey, error) {
+	var state *C.ykpiv_state
 	yubikey := Yubikey{
-		state:   &C.ykpiv_state{},
+		state:   state,
 		Options: opts,
 	}
 
@@ -546,7 +547,7 @@ func New(opts Options) (*Yubikey, error) {
 // "Reader" argument in ykpiv.Options, and may include things ykpiv can't talk
 // to.
 func Readers() ([]string, error) {
-	state := &C.ykpiv_state{}
+	var state *C.ykpiv_state
 
 	if err := getError(C.ykpiv_init(&state, C.int(0)), "init"); err != nil {
 		return nil, err
