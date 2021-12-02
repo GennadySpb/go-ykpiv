@@ -24,8 +24,8 @@ package ykpiv
 //      when I build it. For now this will keep it quiet :\
 
 /*
-#cgo darwin LDFLAGS: -L /usr/local/lib -lykpiv
-#cgo darwin CFLAGS: -I/usr/local/include/ykpiv/
+#cgo darwin LDFLAGS: -L /usr/local/lib -L /opt/homebrew/lib/ -lykpiv
+#cgo darwin CFLAGS: -I/usr/local/include/ykpiv/ -I /opt/homebrew/include/ykpiv
 #cgo linux LDFLAGS: -L /usr/local/lib/ -Wl,-Bstatic -lykpiv -lcrypto -Wl,-Bdynamic -lpcsclite -ldl
 #cgo linux CFLAGS: -I/usr/include/ykpiv/
 #cgo windows CFLAGS: -I./win/include/ykpiv/
